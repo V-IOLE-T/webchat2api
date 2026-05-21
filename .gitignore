@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+wheels/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Runtime data and local secrets
+.env
+.env.*
+!.env.example
+config.json
+!config.example.json
+data/
+*.db
+*.sqlite
+*.sqlite3
+git_cache/
+backup_state.json
+logs.jsonl
+
+# Generated web assets
+web/.next/
+web/out/
+web/node_modules/
+web/tsconfig.tsbuildinfo
+web/next-env.d.ts
+web_dist/
+
+# Editors and local tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.claude/settings.local.json
+
+# Local compose overrides
+compose.override.yml
+docker-compose.override.yml
+docker-compose-local.yml

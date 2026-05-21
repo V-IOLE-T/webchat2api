@@ -1,0 +1,22 @@
+name: webchat2api
+
+services:
+  webchat2api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: webchat2api:latest
+    container_name: webchat2api
+    restart: unless-stopped
+    ports:
+      - "83:83"
+    volumes:
+      - ./data:/app/data
+      # Optional local override: cp config.example.json config.json, then uncomment.
+      # - ./config.json:/app/config.json:ro
+    environment:
+      LOGIN_SECRET: admin
+      STORAGE_BACKEND: sqlite
+      DATABASE_URL: sqlite:////app/data/accounts.db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

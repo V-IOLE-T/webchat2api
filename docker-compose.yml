@@ -1,0 +1,21 @@
+name: webchat2api
+
+services:
+  webchat2api:
+    image: webchat2api:latest
+    container_name: webchat2api
+    restart: unless-stopped
+    ports:
+      - "83:83"
+    volumes:
+      - ./data:/app/data
+      # Optional local override: cp config.example.json config.json, then uncomment.
+      # - ./config.json:/app/config.json:ro
+    environment:
+      LOGIN_SECRET: admin
+      STORAGE_BACKEND: json
+      # 如需访问宿主机代理，可取消下一行注释，并保留 extra_hosts。
+      # PROXY_URL: http://host.docker.internal:7890
+      # WEBCHAT2API_BASE_URL: https://your-domain.com
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
