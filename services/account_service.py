@@ -12,7 +12,7 @@ from services.log_service import (
     LOG_TYPE_ACCOUNT,
     log_service,
 )
-from services.models import GPT_PROVIDER, normalize_provider
+from services.models import GPT_PROVIDER, GROK_PROVIDER, normalize_provider
 from services.storage.base import StorageBackend
 from utils.helper import anonymize_token
 
@@ -330,6 +330,26 @@ class AccountService:
             items = [dict(item) for item in self._accounts.values()]
         return {"removed": removed, "items": items}
 
+    def delete_limited_accounts(self) -> dict:
+        with self._lock:
+            target_tokens = [
+                token
+                for token, account in self._accounts.items()
+                if account.get("status") == "限流"
+            ]
+            removed = sum(self._accounts.pop(token, None) is not None for token in target_tokens)
+            for token in target_tokens:
+                self._image_inflight.pop(token, None)
+            if removed:
+                if self._accounts:
+                    self._index %= len(self._accounts)
+                else:
+                    self._index = 0
+                self._save_accounts()
+                log_service.add(LOG_TYPE_ACCOUNT, f"删除 {removed} 个限流账号", {"removed": removed})
+            items = [dict(item) for item in self._accounts.values()]
+        return {"removed": removed, "items": items}
+
     def update_account(self, access_token: str, updates: dict) -> dict | None:
         if not access_token:
             return None
@@ -437,8 +457,11 @@ class AccountService:
             "items": self.list_accounts(),
         }
 
-    def build_export_items(self, access_tokens: list[str] | None = None) -> list[dict[str, str]]:
+    def build_export_items(self, access_tokens: list[str] | None = None, provider: str | None = None) -> list[dict[str, str]]:
         requested_tokens = [token for token in dict.fromkeys(access_tokens or []) if token]
+        provider_filter = normalize_provider(provider) if provider else None
+        if provider_filter not in {None, GPT_PROVIDER, GROK_PROVIDER}:
+            return []
         with self._lock:
             if requested_tokens:
                 accounts = [dict(self._accounts[token]) for token in requested_tokens if token in self._accounts]
@@ -449,6 +472,8 @@ class AccountService:
         for account in accounts:
             access_token = _clean_string(account.get("access_token"))
             if not access_token:
+                continue
+            if provider_filter is not None and normalize_provider(account.get("provider")) != provider_filter:
                 continue
 
             id_token = _clean_string(account.get("id_token"))
@@ -484,12 +509,18 @@ class AccountService:
                     "id_token": id_token,
                     "account_id": account_id,
                     "access_token": access_token,
+                    "sso": _clean_string(account.get("sso")),
                     "last_refresh": last_refresh,
                     "refresh_token": refresh_token,
                 }
             )
 
         return export_items
+
+    @staticmethod
+    def build_export_text(items: list[dict[str, str]]) -> str:
+        lines = [credential for item in items if (credential := _clean_string(item.get("access_token") or item.get("sso")))]
+        return "\n".join(lines) + ("\n" if lines else "")
 
 
 account_service = AccountService(config.get_storage_backend())

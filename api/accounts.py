@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-import io
-import json
-import re
-import zipfile
-from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException
@@ -49,6 +44,7 @@ class AccountCreateRequest(BaseModel):
 
 class AccountDeleteRequest(BaseModel):
     tokens: list[str] = Field(default_factory=list)
+    mode: Literal["tokens", "limited"] = "tokens"
 
 
 class AccountRefreshRequest(BaseModel):
@@ -57,7 +53,7 @@ class AccountRefreshRequest(BaseModel):
 
 class AccountExportRequest(BaseModel):
     access_tokens: list[str] = Field(default_factory=list)
-    format: Literal["json", "zip"] = "json"
+    provider: Literal["gpt", "grok"]
 
 
 class AccountUpdateRequest(BaseModel):
@@ -114,33 +110,8 @@ def _unique_tokens(tokens: list[str]) -> list[str]:
     return list(dict.fromkeys(str(token or "").strip() for token in tokens if str(token or "").strip()))
 
 
-def _download_timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
-
-
-def _safe_export_name(value: str, fallback: str) -> str:
-    clean = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-._")
-    return (clean or fallback)[:80]
-
-
-def _account_zip_bytes(items: list[dict[str, str]]) -> bytes:
-    buf = io.BytesIO()
-    used_names: set[str] = set()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
-        for index, item in enumerate(items, start=1):
-            raw_name = item.get("email") or item.get("account_id") or f"account-{index:03d}"
-            base_name = _safe_export_name(raw_name, f"account-{index:03d}")
-            name = base_name
-            suffix = 2
-            while name in used_names:
-                name = f"{base_name}-{suffix}"
-                suffix += 1
-            used_names.add(name)
-            archive.writestr(
-                f"{name}.json",
-                json.dumps(item, ensure_ascii=False, indent=2) + "\n",
-            )
-    return buf.getvalue()
+def _export_filename(provider: Literal["gpt", "grok"]) -> str:
+    return "webchat2api-gpt.txt" if provider == "gpt" else "webchat2api_grok.txt"
 
 
 def create_router() -> APIRouter:
@@ -227,6 +198,8 @@ def create_router() -> APIRouter:
     @router.delete("/api/accounts")
     async def delete_accounts(body: AccountDeleteRequest, authorization: str | None = Header(default=None)):
         require_admin(authorization)
+        if body.mode == "limited":
+            return account_service.delete_limited_accounts()
         tokens = [str(token or "").strip() for token in body.tokens if str(token or "").strip()]
         if not tokens:
             raise HTTPException(status_code=400, detail={"error": "tokens is required"})
@@ -246,27 +219,18 @@ def create_router() -> APIRouter:
     async def export_accounts(body: AccountExportRequest, authorization: str | None = Header(default=None)):
         require_admin(authorization)
         access_tokens = _unique_tokens(body.access_tokens)
-        items = account_service.build_export_items(access_tokens)
+        items = account_service.build_export_items(access_tokens, provider=body.provider)
         if not items:
             raise HTTPException(
                 status_code=400,
                 detail={"error": "没有可导出的账号，请检查 access_tokens 是否存在"},
             )
 
-        timestamp = _download_timestamp()
-        if body.format == "zip":
-            content = _account_zip_bytes(items)
-            return Response(
-                content,
-                media_type="application/zip",
-                headers={"Content-Disposition": f'attachment; filename="codex-accounts-{timestamp}.zip"'},
-            )
-
-        payload: dict[str, str] | list[dict[str, str]] = items[0] if len(items) == 1 else items
+        filename = _export_filename(body.provider)
         return Response(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            media_type="application/json",
-            headers={"Content-Disposition": f'attachment; filename="codex-accounts-{timestamp}.json"'},
+            account_service.build_export_text(items),
+            media_type="text/plain; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     @router.post("/api/accounts/update")
