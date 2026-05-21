@@ -693,7 +693,7 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
   const [isSubmittingText, setIsSubmittingText] = useState(false);
   const [isTestingTextModels, setIsTestingTextModels] = useState(false);
   const [textModelTestResults, setTextModelTestResults] = useState<TextModelTestResult[]>([]);
-  const [experimentMode, setExperimentMode] = useState<ExperimentMode>("text");
+  const [experimentMode, setExperimentMode] = useState<ExperimentMode>("image");
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [imageCount, setImageCount] = useState("1");
   const [imageSize, setImageSize] = useState("");
