@@ -38,6 +38,15 @@
 
 ### Docker CLI 部署
 
+新用户可先克隆仓库并进入项目目录：
+
+```bash
+git clone https://github.com/zqbxdev/webchat2api
+cd webchat2api
+```
+
+构建本地镜像并运行：
+
 ```bash
 docker build -t webchat2api:latest .
 
@@ -89,8 +98,16 @@ docker run -d \
 
 ### Docker Compose 部署
 
+`docker-compose.yml` 使用本地镜像 `webchat2api:latest`。请先按上面的命令构建镜像，再启动服务：
+
 ```bash
 docker compose up -d
+```
+
+如需通过 Compose 构建并启动，可使用本地构建配置：
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
 常用命令：
@@ -239,10 +256,6 @@ cp config.example.json config.json
 功能状态见：[docs/feature-status.md](./docs/feature-status.md)。
 
 上游 SSE 会话协议参考见：[docs/upstream-sse-conversation.md](./docs/upstream-sse-conversation.md)。
-
-## 版本
-
-当前版本：`0.0.1`
 
 ## 致谢
 
