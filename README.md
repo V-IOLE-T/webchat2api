@@ -21,7 +21,7 @@
 - 试验页：文生文聊天、文本模型批量可用性测试、文生图/图生图切换、图片队列和图片历史
 - 文生文聊天历史：保存在浏览器本地，刷新页面后仍保留
 - 图片账号轮换：图片生成/编辑遇到失效账号时，会跳过该账号并尝试下一个可用账号
-- 账号导出：支持 JSON/ZIP，access-token-only 账号也可导出，缺失字段输出为空字符串
+- 账号导出：仅导出 TXT，并按 GPT/Grok 服务商分别下载为 `webchat2api-gpt.txt` / `webchat2api_grok.txt`；文件内容每行一个 `access_token` 或 `sso` 凭据
 - 部署方式：Docker CLI、Docker Compose
 
 ## 界面预览
@@ -202,12 +202,12 @@ curl http://localhost:83/api/accounts/export \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer admin" \
   -d '{
-    "format": "json",
+    "provider": "gpt",
     "access_tokens": []
   }'
 ```
 
-`access_tokens` 为空数组时导出全部账号；仅有 `access_token` 的账号也会导出。
+`provider` 可选 `gpt` 或 `grok`，用于分别导出 GPT/Grok TXT 文件；GPT 下载文件名固定为 `webchat2api-gpt.txt`，Grok 下载文件名固定为 `webchat2api_grok.txt`。`access_tokens` 为空数组时导出该服务商全部账号；内容仅包含凭据本身，每个账号一行，优先使用清理后的 `access_token`，缺失 `access_token` 时使用清理后的 `sso`。
 
 ## 配置
 
