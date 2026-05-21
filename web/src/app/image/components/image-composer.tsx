@@ -1,6 +1,6 @@
 "use client";
 import { ArrowUp, Check, ChevronDown, ImagePlus, LoaderCircle, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react";
 
 import { ImageLightbox } from "@/components/image-lightbox";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,8 @@ export function ImageComposer({
   const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const sizeMenuRef = useRef<HTMLDivElement>(null);
   const sizeMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const isComposingRef = useRef(false);
+  const lastCompositionEndAtRef = useRef(0);
   const lightboxImages = useMemo(
     () => referenceImages.map((image, index) => ({ id: `${image.name}-${index}`, src: image.dataUrl })),
     [referenceImages],
@@ -93,6 +95,14 @@ export function ImageComposer({
 
     event.preventDefault();
     void onReferenceImageChange(imageFiles);
+  };
+
+  const isImeComposing = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = event.nativeEvent as KeyboardEvent["nativeEvent"] & { isComposing?: boolean };
+    const endedRecently = Date.now() - lastCompositionEndAtRef.current < 80;
+    return Boolean(
+      isComposingRef.current || nativeEvent.isComposing || event.key === "Process" || event.keyCode === 229 || endedRecently,
+    );
   };
 
   return (
@@ -168,7 +178,17 @@ export function ImageComposer({
                   ? "描述你希望如何修改参考图"
                   : "输入你想要生成的画面，也可直接粘贴图片"
               }
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                isComposingRef.current = false;
+                lastCompositionEndAtRef.current = Date.now();
+              }}
               onKeyDown={(event) => {
+                if (isImeComposing(event)) {
+                  return;
+                }
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   void onSubmit();
@@ -301,4 +321,3 @@ export function ImageComposer({
     </div>
   );
 }
-

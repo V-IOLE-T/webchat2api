@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clock3, Download, LoaderCircle, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,15 @@ function getStoredImageSrc(image: StoredImage) {
     return `data:image/png;base64,${image.b64_json}`;
   }
   return image.url || "";
+}
+
+function buildRetryableImageSrc(image: StoredImage, retryCount: number) {
+  const src = getStoredImageSrc(image);
+  if (!src || image.b64_json) {
+    return src;
+  }
+  const separator = src.includes("?") ? "&" : "?";
+  return `${src}${separator}t=${retryCount}`;
 }
 
 async function downloadStoredImage(image: StoredImage, index: number) {
@@ -68,6 +77,15 @@ export function ImageResults({
   formatConversationTime,
 }: ImageResultsProps) {
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({});
+  const [imageRetryCounts, setImageRetryCounts] = useState<Record<string, number>>({});
+  const retryTimersRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(retryTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      retryTimersRef.current = {};
+    };
+  }, []);
 
   const updateImageDimensions = (id: string, width: number, height: number) => {
     const dimensions = formatImageDimensions(width, height);
@@ -77,6 +95,29 @@ export function ImageResults({
       }
       return { ...current, [id]: dimensions };
     });
+  };
+
+  const scheduleImageRetry = (id: string) => {
+    if (retryTimersRef.current[id]) {
+      return;
+    }
+    setImageRetryCounts((current) => {
+      if ((current[id] || 0) >= 3) {
+        return current;
+      }
+      retryTimersRef.current[id] = window.setTimeout(() => {
+        setImageRetryCounts((latest) => ({ ...latest, [id]: (latest[id] || 0) + 1 }));
+        delete retryTimersRef.current[id];
+      }, 800);
+      return current;
+    });
+  };
+
+  const clearImageRetry = (id: string) => {
+    if (retryTimersRef.current[id]) {
+      window.clearTimeout(retryTimersRef.current[id]);
+      delete retryTimersRef.current[id];
+    }
   };
 
   if (!selectedConversation) {
@@ -112,7 +153,7 @@ export function ImageResults({
           src: image.dataUrl,
         }));
         const successfulTurnImages = turn.images.flatMap((image) => {
-          const src = image.status === "success" ? getStoredImageSrc(image) : "";
+          const src = image.status === "success" ? buildRetryableImageSrc(image, imageRetryCounts[image.id] || 0) : "";
           return src
             ? [
                 {
@@ -206,7 +247,8 @@ export function ImageResults({
 
                   <div className="grid grid-cols-3 gap-2 sm:block sm:columns-2 sm:gap-4 sm:space-y-4 xl:columns-3">
                     {turn.images.map((image, index) => {
-                      const imageSrc = image.status === "success" ? getStoredImageSrc(image) : "";
+                      const imageSrc =
+                        image.status === "success" ? buildRetryableImageSrc(image, imageRetryCounts[image.id] || 0) : "";
                       if (image.status === "success" && imageSrc) {
                         const currentIndex = successfulTurnImages.findIndex((item) => item.id === image.id);
                         const sizeLabel = image.b64_json ? formatBase64ImageSize(image.b64_json) : "";
@@ -228,11 +270,15 @@ export function ImageResults({
                                 alt={`Generated result ${index + 1}`}
                                 className="block h-full w-full object-cover transition duration-200 group-hover:brightness-90 sm:h-auto sm:object-contain"
                                 onLoad={(event) => {
+                                  clearImageRetry(image.id);
                                   updateImageDimensions(
                                     image.id,
                                     event.currentTarget.naturalWidth,
                                     event.currentTarget.naturalHeight,
                                   );
+                                }}
+                                onError={() => {
+                                  scheduleImageRetry(image.id);
                                 }}
                               />
                             </button>

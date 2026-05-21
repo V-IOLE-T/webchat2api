@@ -7,7 +7,20 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS web-build
 WORKDIR /app/web
 
 COPY web/package.json web/bun.lock ./
-RUN npm install
+RUN set -eux; \
+    npm config set fetch-retries 5; \
+    npm config set fetch-retry-mintimeout 10000; \
+    npm config set fetch-retry-maxtimeout 60000; \
+    for attempt in 1 2 3 4 5; do \
+        npm install && \
+        break; \
+        if [ "$attempt" -eq 5 ]; then \
+            exit 1; \
+        fi; \
+        echo "npm install failed, retrying (${attempt}/5)..." >&2; \
+        npm cache clean --force; \
+        sleep 5; \
+    done
 
 COPY VERSION /app/VERSION
 COPY web ./
@@ -29,12 +42,22 @@ WORKDIR /app
 # - git: Git 存储后端需要
 # - libpq-dev: PostgreSQL 客户端库
 # - gcc: 编译 psycopg2-binary 需要
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
-    libpq-dev \
-    gcc \
-    openssl \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    for attempt in 1 2 3 4 5; do \
+        apt-get update -o Acquire::Retries=5 && \
+        apt-get install -y -o Acquire::Retries=5 --no-install-recommends \
+            git \
+            libpq-dev \
+            gcc \
+            openssl && \
+        break; \
+        if [ "$attempt" -eq 5 ]; then \
+            exit 1; \
+        fi; \
+        echo "apt install failed, retrying (${attempt}/5)..." >&2; \
+        sleep 5; \
+    done; \
+    rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir uv
 
