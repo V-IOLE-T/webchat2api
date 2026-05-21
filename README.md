@@ -257,6 +257,10 @@ cp config.example.json config.json
 
 上游 SSE 会话协议参考见：[docs/upstream-sse-conversation.md](./docs/upstream-sse-conversation.md)。
 
+## 社区支持
+
+欢迎在 [linux.do](https://linux.do/) 社区交流反馈。
+
 ## 致谢
 
 感谢 https://github.com/chenyme/grok2api 和 https://github.com/basketikun/chatgpt2api。
